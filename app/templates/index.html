@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring & Security Platform</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f6f9; color: #333; }
+        h1 { color: #1a252f; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        input, button { padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #2980b9; }
+        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .status-passed { color: #27ae60; font-weight: bold; }
+        .status-warning { color: #f39c12; font-weight: bold; }
+        .status-failed { color: #c0392b; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Infrastructure & Security Monitoring Platform</h1>
+
+    <div class="grid">
+        <!-- Card 1: Ping Scan -->
+        <div class="card">
+            <h3>1. Network Discovery (Ping)</h3>
+            <input type="text" id="pingIp" placeholder="z. B. 127.0.0.1" value="127.0.0.1">
+            <button onclick="runPing()">Ping ausführen</button>
+            <div id="pingResult"></div>
+        </div>
+
+        <!-- Card 2: Port & Compliance Scan -->
+        <div class="card">
+            <h3>2. Security & Compliance Scan</h3>
+            <input type="text" id="secIp" placeholder="z. B. 127.0.0.1" value="127.0.0.1">
+            <button onclick="runCompliance()">Compliance prüfen</button>
+            <div id="secResult"></div>
+        </div>
+    </div>
+
+    <!-- Card 3: Registrierte Hosts -->
+    <div class="card">
+        <h3>Überwachte Hosts (Datenbank)</h3>
+        <button onclick="loadHosts()">Hosts neu laden</button>
+        <a href="/api/v1/reporting/export/csv" download>
+        <button style="background-color: #27ae60;">CSV Report herunterladen</button>
+        </a>
+        <div id="hostsList"></div>
+    </div>
+
+    <script>
+        async function runPing() {
+            const ip = document.getElementById('pingIp').value;
+            const res = await fetch(`/api/v1/scan/ping?ip_address=${ip}`, { method: 'POST' });
+            const data = await res.json();
+            document.getElementById('pingResult').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            loadHosts();
+        }
+
+        async function runCompliance() {
+            const ip = document.getElementById('secIp').value;
+            const res = await fetch(`/api/v1/security/compliance?ip_address=${ip}`, { method: 'POST' });
+            const data = await res.json();
+            const result = data.compliance_result;
+            
+            let statusClass = result.status === 'PASSED' ? 'status-passed' : (result.status === 'WARNING' ? 'status-warning' : 'status-failed');
+
+            document.getElementById('secResult').innerHTML = `
+                <p>Status: <span class="${statusClass}">${result.status}</span> (Score: ${result.compliance_score}/100)</p>
+                <pre>${JSON.stringify(result.findings, null, 2)}</pre>
+            `;
+        }
+
+        async function loadHosts() {
+            const res = await fetch('/api/v1/hosts');
+            const data = await res.json();
+            let html = '<ul>';
+            data.hosts.forEach(h => {
+                html += `<li><strong>${h.ip_address}</strong> - Status: ${h.status} (Zuletzt gesehen: ${h.last_seen})</li>`;
+            });
+            html += '</ul>';
+            document.getElementById('hostsList').innerHTML = html;
+        }
+
+        // Beim Laden der Seite Hosts abrufen
+        loadHosts();
+    </script>
+</body>
+</html>

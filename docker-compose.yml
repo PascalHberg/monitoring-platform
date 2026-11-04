@@ -1,0 +1,9 @@
+services:
+  monitoring-platform:
+    build: .
+    container_name: monitoring_platform_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./monitoring.db:/app/monitoring.db
+    restart: unless-stopped
