@@ -26,5 +26,5 @@ Die Anwendung ist als **modularer Monolith** strukturiert:
 
 1. Repository klonen:
    ```bash
-   git clone [https://github.com/DEIN-USERNAME/monitoring-platform.git](https://github.com/DEIN-USERNAME/monitoring-platform.git)
+   git clone [https://github.com/PascalHberg/monitoring-platform.git](https://github.com/PascalHberg/monitoring-platform.git)
    cd monitoring-platform
