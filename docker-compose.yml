@@ -4,6 +4,8 @@ services:
     container_name: monitoring_platform_app
     ports:
       - "8000:8000"
+    environment:
+      API_TOKEN: ${API_TOKEN:?Set API_TOKEN before starting the service}
     volumes:
       - ./monitoring.db:/app/monitoring.db
     restart: unless-stopped

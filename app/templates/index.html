@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoring & Security Platform</title>
+    <title>Monitoring &amp; Security Platform</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f6f9; color: #333; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 20px; background: #f4f6f9; color: #333; }
         h1 { color: #1a252f; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px #0000001a; margin-bottom: 20px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
         input, button { padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background-color: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #2980b9; }
+        button { background: #3498db; color: white; border: 0; cursor: pointer; font-weight: bold; }
         pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 5px; overflow-x: auto; }
         .status-passed { color: #27ae60; font-weight: bold; }
         .status-warning { color: #f39c12; font-weight: bold; }
@@ -19,72 +18,116 @@
     </style>
 </head>
 <body>
-
-    <h1>Infrastructure & Security Monitoring Platform</h1>
+    <h1>Infrastructure &amp; Security Monitoring Platform</h1>
+    <div class="card">
+        <label for="apiToken"><strong>API-Schlüssel</strong> (wird nur für diese Browser-Sitzung gespeichert):</label><br>
+        <input type="password" id="apiToken" autocomplete="current-password" placeholder="API_TOKEN eingeben">
+        <button onclick="saveToken()">Schlüssel verwenden</button>
+        <span id="authMessage" role="status"></span>
+    </div>
 
     <div class="grid">
-        <!-- Card 1: Ping Scan -->
         <div class="card">
-            <h3>1. Network Discovery (Ping)</h3>
+            <h3>1. Netzwerk-Erreichbarkeit (Ping)</h3>
             <input type="text" id="pingIp" placeholder="z. B. 127.0.0.1" value="127.0.0.1">
             <button onclick="runPing()">Ping ausführen</button>
             <div id="pingResult"></div>
         </div>
-
-        <!-- Card 2: Port & Compliance Scan -->
         <div class="card">
-            <h3>2. Security & Compliance Scan</h3>
+            <h3>2. Sicherheits- und Compliance-Prüfung</h3>
             <input type="text" id="secIp" placeholder="z. B. 127.0.0.1" value="127.0.0.1">
             <button onclick="runCompliance()">Compliance prüfen</button>
             <div id="secResult"></div>
         </div>
     </div>
 
-    <!-- Card 3: Registrierte Hosts -->
     <div class="card">
-        <h3>Überwachte Hosts (Datenbank)</h3>
+        <h3>Überwachte Hosts</h3>
         <button onclick="loadHosts()">Hosts neu laden</button>
-        <a href="/api/v1/reporting/export/csv" download>
-        <button style="background-color: #27ae60;">CSV Report herunterladen</button>
-        </a>
+        <a href="/api/v1/reporting/export/csv" id="csvLink"><button style="background:#27ae60">CSV-Report herunterladen</button></a>
         <div id="hostsList"></div>
     </div>
 
     <script>
-        async function runPing() {
-            const ip = document.getElementById('pingIp').value;
-            const res = await fetch(`/api/v1/scan/ping?ip_address=${ip}`, { method: 'POST' });
-            const data = await res.json();
-            document.getElementById('pingResult').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        const tokenInput = document.getElementById('apiToken');
+        tokenInput.value = sessionStorage.getItem('apiToken') || '';
+
+        function saveToken() {
+            sessionStorage.setItem('apiToken', tokenInput.value.trim());
+            document.getElementById('authMessage').textContent = 'Schlüssel für diese Sitzung gespeichert.';
             loadHosts();
         }
 
-        async function runCompliance() {
-            const ip = document.getElementById('secIp').value;
-            const res = await fetch(`/api/v1/security/compliance?ip_address=${ip}`, { method: 'POST' });
-            const data = await res.json();
-            const result = data.compliance_result;
-            
-            let statusClass = result.status === 'PASSED' ? 'status-passed' : (result.status === 'WARNING' ? 'status-warning' : 'status-failed');
+        async function apiFetch(url, options = {}) {
+            const token = tokenInput.value.trim() || sessionStorage.getItem('apiToken') || '';
+            const headers = new Headers(options.headers || {});
+            headers.set('X-API-Key', token);
+            const response = await fetch(url, { ...options, headers });
+            if (!response.ok) {
+                const problem = await response.json().catch(() => ({}));
+                const detail = problem.detail;
+                const message = typeof detail === 'object' ? detail.message : detail;
+                throw new Error(message || `HTTP ${response.status}`);
+            }
+            return response;
+        }
 
-            document.getElementById('secResult').innerHTML = `
-                <p>Status: <span class="${statusClass}">${result.status}</span> (Score: ${result.compliance_score}/100)</p>
-                <pre>${JSON.stringify(result.findings, null, 2)}</pre>
-            `;
+        function showJson(elementId, data) {
+            const pre = document.createElement('pre');
+            pre.textContent = JSON.stringify(data, null, 2);
+            document.getElementById(elementId).replaceChildren(pre);
+        }
+
+        async function runPing() {
+            try {
+                const ip = encodeURIComponent(document.getElementById('pingIp').value.trim());
+                const res = await apiFetch(`/api/v1/scan/ping?ip_address=${ip}`, { method: 'POST' });
+                showJson('pingResult', await res.json());
+                await loadHosts();
+            } catch (error) { document.getElementById('pingResult').textContent = error.message; }
+        }
+
+        async function runCompliance() {
+            try {
+                const ip = encodeURIComponent(document.getElementById('secIp').value.trim());
+                const res = await apiFetch(`/api/v1/security/compliance?ip_address=${ip}`, { method: 'POST' });
+                const data = await res.json();
+                const result = data.compliance_result;
+                const status = document.createElement('p');
+                status.textContent = `Status: ${result.status} | Score: ${result.compliance_score ?? 'nicht verfügbar'}/100 | geprüft: ${result.checked_at}`;
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(result.findings || result, null, 2);
+                document.getElementById('secResult').replaceChildren(status, pre);
+            } catch (error) { document.getElementById('secResult').textContent = error.message; }
         }
 
         async function loadHosts() {
-            const res = await fetch('/api/v1/hosts');
-            const data = await res.json();
-            let html = '<ul>';
-            data.hosts.forEach(h => {
-                html += `<li><strong>${h.ip_address}</strong> - Status: ${h.status} (Zuletzt gesehen: ${h.last_seen})</li>`;
-            });
-            html += '</ul>';
-            document.getElementById('hostsList').innerHTML = html;
+            try {
+                const res = await apiFetch('/api/v1/hosts');
+                const data = await res.json();
+                const list = document.createElement('ul');
+                data.hosts.forEach(host => {
+                    const item = document.createElement('li');
+                    item.textContent = `${host.ip_address} — ${host.status} (zuletzt gesehen: ${host.last_seen})`;
+                    list.appendChild(item);
+                });
+                document.getElementById('hostsList').replaceChildren(list);
+            } catch (error) { document.getElementById('hostsList').textContent = error.message; }
         }
 
-        // Beim Laden der Seite Hosts abrufen
+        document.getElementById('csvLink').addEventListener('click', async event => {
+            event.preventDefault();
+            try {
+                const response = await apiFetch('/api/v1/reporting/export/csv');
+                const blob = await response.blob();
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'hosts_audit_report.csv';
+                link.click();
+                URL.revokeObjectURL(link.href);
+            } catch (error) { document.getElementById('authMessage').textContent = error.message; }
+        });
+
         loadHosts();
     </script>
 </body>
